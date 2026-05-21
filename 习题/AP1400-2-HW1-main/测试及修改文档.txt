@@ -1,0 +1,56 @@
+HW1 测试及修改文档
+
+一、测试环境
+- 操作系统：Windows
+- 构建方式：Docker
+- 镜像基础：仓库自带 Dockerfile
+- 验证方式：`docker build -t ap1400-hw1 .` 和 `docker run --rm ap1400-hw1`
+
+二、Docker 构建前的主要问题
+1. C++ 标准版本不匹配
+   - 原工程 `CMakeLists.txt` 使用的是 C++14。
+   - 容器里的 GoogleTest 头文件使用了 `std::string_view`、`std::optional` 等 C++17 特性。
+   - 结果是构建阶段直接报编译错误，测试无法开始。
+
+2. 接口声明与测试不一致
+   - 头文件里 `zeros` 被写成了 `zero`。
+   - 头文件里只声明了标量乘法 `multiply(const Matrix&, double)`，没有矩阵乘法重载。
+   - 单元测试调用的是 `algebra::zeros(...)` 和 `algebra::multiply(matrix1, matrix2)`，因此出现未定义引用或编译失败。
+
+3. 命名空间不一致
+   - `hw1.h` 里的函数都放在 `algebra` 命名空间中。
+   - 但 `hw1.cpp` 里的实现最初写在全局命名空间。
+   - 结果是链接阶段找不到对应符号，出现大量 undefined reference。
+
+4. 边界条件和异常处理不完整
+   - `random` 没有在 `min > max` 时抛出 `logic_error`。
+   - `sum` 没有正确处理空矩阵与尺寸不匹配。
+   - `determinant`、`inverse`、`concatenate`、ERO 函数、`upper_triangular` 对非法输入的处理不完整。
+   - 测试运行到这些用例时会失败。
+
+5. 上三角函数实现存在问题
+   - `upper_triangular` 中有变量声明错误和越界风险。
+   - 非方阵输入也没有按照测试要求抛出异常。
+
+三、修改内容
+1. 将 `CMakeLists.txt` 的 C++ 标准从 14 改为 17。
+2. 在 `hw1.h` 中修正接口名 `zero -> zeros`，并补上矩阵乘法重载声明。
+3. 将 `hw1.cpp` 全部实现包裹到 `namespace algebra` 内，保证与头文件一致。
+4. 补齐 `random` 的非法参数检查。
+5. 补齐 `sum`、`determinant`、`inverse`、`concatenate` 的空矩阵、非方阵、尺寸不匹配等异常处理。
+6. 给 `ero_swap`、`ero_multiply`、`ero_sum` 增加行号越界检查。
+7. 修正 `upper_triangular` 的变量声明问题，并补上非方阵异常。
+
+四、修改后的验证结果
+1. Docker 镜像构建成功。
+2. 运行 `docker run --rm ap1400-hw1` 后，24 个单元测试全部通过。
+3. 最终测试输出为 `<<<SUCCESS>>>`。
+
+五、结论
+这次作业在 Docker 构建前的主要不足，不是单纯“代码没写完”，而是同时存在以下几类问题：
+- 构建环境与编译标准不匹配；
+- 头文件接口与测试代码不一致；
+- 实现文件命名空间与声明不一致；
+- 关键函数缺少边界判断和异常处理。
+
+经过修改后，工程已经能够在 Docker 环境中正常构建并通过全部测试。
